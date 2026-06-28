@@ -25,8 +25,6 @@ qt_add_executable(librepods-windows
     trayiconmanager.h
     enums.h
     battery.hpp
-    BluetoothMonitor.cpp
-    BluetoothMonitor.h
     autostartmanager.hpp
     BasicControlCommand.hpp
     deviceinfo.hpp

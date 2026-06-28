@@ -26,29 +26,20 @@
 #include "trayiconmanager.h"
 #include "enums.h"
 #include "battery.hpp"
-#include "BluetoothMonitor.h"
 #include "autostartmanager.hpp"
 #include "deviceinfo.hpp"
 #include "ble/blemanager.h"
 #include "ble/bleutils.h"
 #include "QRCodeImageProvider.hpp"
 
-#ifdef Q_OS_LINUX
-#include "systemsleepmonitor.hpp"
-#elif defined(Q_OS_WIN)
 #include "windowssleepmonitor.hpp"
 #include "winl2capsocket.h"
-#endif
 
-// The AirPods AAP control channel runs over L2CAP. Qt's QBluetoothSocket
-// supports L2CAP on Linux (BlueZ) but not on Windows (the MS stack blocks
-// user-mode L2CAP), so on Windows we route through a kernel profile driver
-// via WinL2capSocket, which is API-compatible with the subset used here.
-#ifdef Q_OS_WIN
+// The AirPods AAP control channel runs over L2CAP. Qt's QBluetoothSocket does
+// not support L2CAP on Windows (the MS stack blocks user-mode L2CAP), so we
+// route through a kernel profile driver via WinL2capSocket, which is
+// API-compatible with the subset used here.
 using AapSocket = WinL2capSocket;
-#else
-using AapSocket = QBluetoothSocket;
-#endif
 
 using namespace AirpodsTrayApp::Enums;
 
@@ -72,11 +63,7 @@ public:
         : QObject(parent), debugMode(debugMode), m_settings(new QSettings("AirPodsTrayApp", "AirPodsTrayApp"))
         , m_autoStartManager(new AutoStartManager(this)), m_hideOnStart(hideOnStart), parent(parent)
         , m_deviceInfo(new DeviceInfo(this)), m_bleManager(new BleManager(this))
-#ifdef Q_OS_LINUX
-        , m_systemSleepMonitor(new SystemSleepMonitor(this))
-#elif defined(Q_OS_WIN)
         , m_systemSleepMonitor(new WindowsSleepMonitor(this))
-#endif
     {
         QLoggingCategory::setFilterRules(QString("librepods.debug=%1").arg(debugMode ? "true" : "false"));
         LOG_INFO("Initializing LibrePods");
@@ -100,18 +87,10 @@ public:
         connect(mediaController, &MediaController::mediaStateChanged, this, &AirPodsTrayApp::handleMediaStateChange);
         mediaController->followMediaChanges();
 
-        monitor = new BluetoothMonitor(this);
-        connect(monitor, &BluetoothMonitor::deviceConnected, this, &AirPodsTrayApp::bluezDeviceConnected);
-        connect(monitor, &BluetoothMonitor::deviceDisconnected, this, &AirPodsTrayApp::bluezDeviceDisconnected);
-
         connect(m_bleManager, &BleManager::deviceFound, this, &AirPodsTrayApp::bleDeviceFound);
         connect(m_deviceInfo->getBattery(), &Battery::primaryChanged, this, &AirPodsTrayApp::primaryChanged);
         connect(m_deviceInfo->getEarDetection(), &EarDetection::statusChanged, this, &AirPodsTrayApp::checkCaseRemoval);
         
-#ifdef Q_OS_LINUX
-        connect(m_systemSleepMonitor, &SystemSleepMonitor::systemGoingToSleep, this, &AirPodsTrayApp::onSystemGoingToSleep);
-        connect(m_systemSleepMonitor, &SystemSleepMonitor::systemWakingUp, this, &AirPodsTrayApp::onSystemWakingUp);
-#elif defined(Q_OS_WIN)
         if (m_systemSleepMonitor->initialize())
         {
             connect(m_systemSleepMonitor, &WindowsSleepMonitor::systemGoingToSleep, this, &AirPodsTrayApp::onSystemGoingToSleep);
@@ -121,20 +100,17 @@ public:
         {
             LOG_ERROR("Failed to initialize Windows Sleep Monitor");
         }
-#endif
 
         // Load settings
         CrossDevice.isEnabled = loadCrossDeviceEnabled();
         setEarDetectionBehavior(loadEarDetectionSettings());
         setRetryAttempts(loadRetryAttempts());
 
-        monitor->checkAlreadyConnectedDevices();
         LOG_INFO("AirPodsTrayApp initialized");
 
-#ifdef Q_OS_WIN
-        // On Windows, detect AirPods via the AAP profile driver's device
-        // interface (QBluetoothLocalDevice/serviceUuids-based detection used on
-        // Linux does not work here). Each connected AirPods exposes one instance.
+        // Detect AirPods via the AAP profile driver's device interface
+        // (serviceUuids-based detection doesn't work here). Each connected
+        // AirPods exposes one instance.
         {
             const QList<QBluetoothAddress> winPods = WinL2capSocket::connectedAirPods();
             for (const QBluetoothAddress &address : winPods) {
@@ -144,13 +120,12 @@ public:
             }
         }
 
-        // Continuously watch for AirPods connecting/disconnecting at runtime,
-        // since the BluetoothMonitor is a no-op stub on Windows.
+        // Continuously watch for AirPods connecting/disconnecting at runtime
+        // (Windows has no BlueZ-style connect/disconnect signals).
         m_winConnPoller = new QTimer(this);
         m_winConnPoller->setInterval(2000);
         connect(m_winConnPoller, &QTimer::timeout, this, &AirPodsTrayApp::pollWindowsConnection);
         m_winConnPoller->start();
-#endif
 
         QBluetoothLocalDevice localDevice;
 
@@ -172,7 +147,6 @@ public:
             }
         }
 
-        initializeDBus();
         initializeBluetooth();
     }
 
@@ -207,8 +181,6 @@ private:
         bool isEnabled = true; // Ability to disable the feature
     } CrossDevice;
 
-    void initializeDBus() { }
-
     bool isAirPodsDevice(const QBluetoothDeviceInfo &device)
     {
         return device.serviceUuids().contains(QBluetoothUuid("74ec2172-0bad-4d01-8f77-997b2be0722a"));
@@ -229,10 +201,6 @@ private:
         {
             LOG_WARN("Phone socket is not open, cannot send notification packet");
         }
-    }
-
-    void disconnectDevice(const QString &devicePath) {
-        LOG_INFO("Disconnecting device at " << devicePath);
     }
 
 public slots:
@@ -496,9 +464,6 @@ public slots:
                 LOG_INFO("A2DP profile activation attempted after system wake-up");
             });
         }
-
-        // Also check for already connected devices via BlueZ
-        monitor->checkAlreadyConnectedDevices();
     }
 
 private slots:
@@ -522,26 +487,6 @@ private slots:
     void sendHandshake() {
         LOG_INFO("Connected to device, sending initial packets");
         writePacketToSocket(AirPodsPackets::Connection::HANDSHAKE, "Handshake packet written: ");
-    }
-
-    void bluezDeviceConnected(const QString &address, const QString &name)
-    {
-        QBluetoothDeviceInfo device(QBluetoothAddress(address), name, 0);
-        connectToDevice(device);
-
-        // After system reboot, AirPods might be connected but A2DP profile not active
-        // Attempt to activate A2DP profile after a delay to ensure connection is established
-        QTimer::singleShot(2000, this, [this, address]()
-        {
-            if (!address.isEmpty())
-            {
-                QString formattedAddress = address;
-                formattedAddress = formattedAddress.replace(":", "_");
-                mediaController->setConnectedDeviceMacAddress(formattedAddress);
-                mediaController->activateA2dpProfile();
-                LOG_INFO("A2DP profile activation attempted for newly connected device");
-            }
-        });
     }
 
     void onDeviceDisconnected(const QBluetoothAddress &address)
@@ -571,7 +516,6 @@ private slots:
         trayManager->resetTrayIcon();
     }
 
-#ifdef Q_OS_WIN
     // Windows has no working BlueZ-style connect/disconnect monitor, so poll the
     // AAP driver's device interface to reconcile our connection state. This
     // detects both AirPods connecting after the app launched and AirPods
@@ -594,17 +538,6 @@ private slots:
         {
             LOG_INFO("Poller: AirPods no longer present, handling disconnect");
             onDeviceDisconnected(socket->peerAddress());
-        }
-    }
-#endif
-
-    void bluezDeviceDisconnected(const QString &address, const QString &name)
-    {
-        if (address == m_deviceInfo->bluetoothAddress())
-        {
-            onDeviceDisconnected(QBluetoothAddress(address));
-        } else {
-            LOG_WARN("Disconnected device does not match connected device: " << address << " != " << m_deviceInfo->bluetoothAddress());
         }
     }
 
@@ -658,12 +591,6 @@ private slots:
         LOG_INFO("Device Name: " << m_deviceInfo->deviceName());
         LOG_INFO("Model Number: " << m_deviceInfo->modelNumber());
         LOG_INFO("Manufacturer: " << m_deviceInfo->manufacturer());
-    }
-
-    QString getEarStatus(char value)
-    {
-        return (value == 0x00) ? "In Ear" : (value == 0x01) ? "Out of Ear"
-                                                            : "In case";
     }
 
     void connectToDevice(const QBluetoothDeviceInfo &device)
@@ -721,7 +648,6 @@ private slots:
         connect(localSocket, &AapSocket::connected, this, handleConnection);
         connect(localSocket, QOverload<AapSocket::SocketError>::of(&AapSocket::errorOccurred),
                 this, handleError);
-#ifdef Q_OS_WIN
         // Clean up immediately when the channel drops (device went away), rather
         // than waiting for the slower device-interface poll to notice.
         connect(localSocket, &AapSocket::disconnected, this, [this, localSocket]() {
@@ -730,7 +656,6 @@ private slots:
                 onDeviceDisconnected(localSocket->peerAddress());
             }
         });
-#endif
 
         localSocket->connectToService(device.address(), QBluetoothUuid("74ec2172-0bad-4d01-8f77-997b2be0722a"));
         m_deviceInfo->setBluetoothAddress(device.address().toString());
@@ -1023,10 +948,6 @@ public:
         }
     }
 
-    bool isPhoneConnected() {
-        return phoneSocket && phoneSocket->isOpen();
-    }
-
     void connectToAirPods(bool force) {
         if (socket && socket->isOpen()) {
             LOG_INFO("Already connected to AirPods");
@@ -1104,7 +1025,6 @@ private:
     QByteArray lastEarDetectionStatus;
     MediaController* mediaController;
     TrayIconManager *trayManager;
-    BluetoothMonitor *monitor;
     QSettings *m_settings;
     AutoStartManager *m_autoStartManager;
     int m_retryAttempts = 3;
@@ -1112,12 +1032,8 @@ private:
     bool m_hideOnStart = false;
     DeviceInfo *m_deviceInfo;
     BleManager *m_bleManager;
-#ifdef Q_OS_LINUX
-    SystemSleepMonitor *m_systemSleepMonitor = nullptr;
-#elif defined(Q_OS_WIN)
     WindowsSleepMonitor *m_systemSleepMonitor = nullptr;
     QTimer *m_winConnPoller = nullptr;
-#endif
     QString m_phoneMacStatus;
 };
 

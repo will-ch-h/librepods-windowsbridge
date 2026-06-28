@@ -54,8 +54,6 @@ namespace AirPodsPackets
     namespace OneBudANCMode
     {
         using Type = BasicControlCommand<0x1B>;
-        static const QByteArray ENABLED = Type::ENABLED;
-        static const QByteArray DISABLED = Type::DISABLED;
         static const QByteArray HEADER = Type::HEADER;
         inline std::optional<bool> parseState(const QByteArray &data) { return Type::parseState(data); }
     }
@@ -64,8 +62,6 @@ namespace AirPodsPackets
     namespace VolumeSwipe
     {
         using Type = BasicControlCommand<0x25>;
-        static const QByteArray ENABLED = Type::ENABLED;
-        static const QByteArray DISABLED = Type::DISABLED;
         static const QByteArray HEADER = Type::HEADER;
         inline std::optional<bool> parseState(const QByteArray &data) { return Type::parseState(data); }
 
@@ -80,8 +76,6 @@ namespace AirPodsPackets
     namespace AdaptiveVolume
     {
         using Type = BasicControlCommand<0x26>;
-        static const QByteArray ENABLED = Type::ENABLED;
-        static const QByteArray DISABLED = Type::DISABLED;
         static const QByteArray HEADER = Type::HEADER;
         inline std::optional<bool> parseState(const QByteArray &data) { return Type::parseState(data); }
     }
@@ -90,8 +84,6 @@ namespace AirPodsPackets
     namespace ConversationalAwareness
     {
         using Type = BasicControlCommand<0x28>;
-        static const QByteArray ENABLED = Type::ENABLED;
-        static const QByteArray DISABLED = Type::DISABLED;
         static const QByteArray HEADER = Type::HEADER;
         static const QByteArray DATA_HEADER = QByteArray::fromHex("040004004B00020001");
         inline std::optional<bool> parseState(const QByteArray &data) { return Type::parseState(data); }
@@ -101,8 +93,6 @@ namespace AirPodsPackets
     namespace HearingAssist
     {
         using Type = BasicControlCommand<0x33>;
-        static const QByteArray ENABLED = Type::ENABLED;
-        static const QByteArray DISABLED = Type::DISABLED;
         static const QByteArray HEADER = Type::HEADER;
         inline std::optional<bool> parseState(const QByteArray &data) { return Type::parseState(data); }
     }
@@ -111,8 +101,6 @@ namespace AirPodsPackets
     namespace HearingAid
     {
         static const QByteArray HEADER = ControlCommand::HEADER + static_cast<char>(0x2C);
-        static const QByteArray ENABLED = ControlCommand::createCommand(0x2C, 0x01, 0x01);
-        static const QByteArray DISABLED = ControlCommand::createCommand(0x2C, 0x02, 0x02);
 
         inline std::optional<bool> parseState(const QByteArray &data)
         {
@@ -139,8 +127,6 @@ namespace AirPodsPackets
     namespace AllowOffOption
     {
         using Type = BasicControlCommand<0x34>;
-        static const QByteArray ENABLED = Type::ENABLED;
-        static const QByteArray DISABLED = Type::DISABLED;
         static const QByteArray HEADER = Type::HEADER;
         inline std::optional<bool> parseState(const QByteArray &data) { return Type::parseState(data); }
     }

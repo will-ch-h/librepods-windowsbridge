@@ -33,9 +33,6 @@ struct BasicControlCommand
     static constexpr quint8 ID = CommandId;
     static const QByteArray HEADER;
 
-    static const QByteArray ENABLED;
-    static const QByteArray DISABLED;
-
     static QByteArray create(quint8 data1 = 0x00, quint8 data2 = 0x00,
                              quint8 data3 = 0x00, quint8 data4 = 0x00)
     {
@@ -56,17 +53,7 @@ struct BasicControlCommand
         }
     }
 
-    static std::optional<char> getValue(const QByteArray &data)
-    {
-        return ControlCommand::parseActive(data);
-    }
 };
 
 template <quint8 CommandId>
 const QByteArray BasicControlCommand<CommandId>::HEADER = ControlCommand::HEADER + static_cast<char>(CommandId);
-
-template <quint8 CommandId>
-const QByteArray BasicControlCommand<CommandId>::ENABLED = create(0x01);
-
-template <quint8 CommandId>
-const QByteArray BasicControlCommand<CommandId>::DISABLED = create(0x02);
