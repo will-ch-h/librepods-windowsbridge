@@ -26,7 +26,6 @@ public:
     bool setSinkVolume(const QString &sinkName, int volumePercent);
     bool setCardProfile(const QString &cardName, const QString &profileName);
     QString getCardNameForDevice(const QString &macAddress);
-    bool isProfileAvailable(const QString &cardName, const QString &profileName);
 
     // Media transport control via Windows System Media Transport Controls (SMTC).
     // getMediaPlaybackStatus returns 0=Playing, 1=Paused, 2=Stopped, -1=no session.

@@ -3,20 +3,11 @@
 
 #include <QObject>
 
-#ifdef Q_OS_LINUX
-#include "pulseaudiocontroller.h"
-#elif defined(Q_OS_WIN)
 #include "windowsaudiocontroller.h"
-#endif
 
-class QProcess;
 class QTimer;
 class EarDetection;
 class PlayerStatusWatcher;
-
-#ifndef Q_OS_WIN
-class QDBusInterface;
-#endif
 
 class MediaController : public QObject
 {
@@ -47,9 +38,6 @@ public:
   void activateA2dpProfile();
   void removeAudioOutputDevice();
   void setConnectedDeviceMacAddress(const QString &macAddress);
-  bool isA2dpProfileAvailable();
-  QString getPreferredA2dpProfile();
-  bool restartWirePlumber();
 
   void setEarDetectionBehavior(EarDetectionBehavior behavior);
   inline EarDetectionBehavior getEarDetectionBehavior() const { return earDetectionBehavior; }
@@ -64,13 +52,11 @@ Q_SIGNALS:
 private:
   MediaState mediaStateFromPlayerctlOutput(const QString &output) const;
   QString getAudioDeviceName();
-  QStringList getPlayingMediaPlayers();
   QString getDefaultSink();
   int getSinkVolume(const QString &sinkName);
   bool setSinkVolume(const QString &sinkName, int volumePercent);
   QString getCardNameForDevice(const QString &macAddress);
   bool setCardProfile(const QString &cardName, const QString &profileName);
-  bool isProfileAvailable(const QString &cardName, const QString &profileName);
 
   // Drives a smooth conversational-awareness volume transition toward
   // m_caTargetVolume (fast when ducking, gentle when restoring) instead of
@@ -81,15 +67,12 @@ private:
   // the short gaps between words/sentences.
   void beginCaRestore();
 
-#ifdef Q_OS_WIN
   // Make the AirPods the default Windows output, retrying while the audio
   // endpoint comes up (it lags the control channel after a reconnect).
   void activateWindowsAudioOutput();
   QTimer *m_winAudioRetryTimer = nullptr;
   int m_winAudioRetries = 0;
-#endif
 
-  QStringList pausedByAppServices;
   bool m_pausedByEarDetection = false;
   int initialVolume = -1;
   QTimer *m_caRampTimer = nullptr;
@@ -101,14 +84,8 @@ private:
   EarDetectionBehavior earDetectionBehavior = PauseWhenOneRemoved;
   QString m_deviceOutputName;
   PlayerStatusWatcher *playerStatusWatcher = nullptr;
-  
-#ifdef Q_OS_LINUX
-  PulseAudioController *m_pulseAudio = nullptr;
-#elif defined(Q_OS_WIN)
+
   WindowsAudioController *m_windowsAudio = nullptr;
-#endif
-  
-  QString m_cachedA2dpProfile;
 };
 
 #endif // MEDIACONTROLLER_H

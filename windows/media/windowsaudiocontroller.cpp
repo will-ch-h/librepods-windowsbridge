@@ -316,14 +316,6 @@ QString WindowsAudioController::getCardNameForDevice(const QString &macAddress)
 #endif
 }
 
-bool WindowsAudioController::isProfileAvailable(const QString &cardName, const QString &profileName)
-{
-    // Windows doesn't use profiles in the same way as Linux PulseAudio
-    Q_UNUSED(cardName);
-    Q_UNUSED(profileName);
-    return true;
-}
-
 QString WindowsAudioController::getDeviceFriendlyName(void *devicePtr)
 {
 #ifdef Q_OS_WIN
