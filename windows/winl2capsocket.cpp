@@ -22,6 +22,7 @@ WinL2capSocket::WinL2capSocket(QBluetoothServiceInfo::Protocol, QObject *parent)
 
 WinL2capSocket::~WinL2capSocket()
 {
+    *m_alive = false;
     close();
 }
 
@@ -102,32 +103,63 @@ void WinL2capSocket::connectToService(const QBluetoothAddress &address, const QB
     m_peer = address;
     m_state = ConnectingState;
 
-    QString path = resolveInterfacePath(address);
-    if (path.isEmpty()) {
-        failWith(HostNotFoundError,
-                 "AAP device interface not found. Is the L2CAP driver installed and the AirPods connected?");
-        return;
-    }
-    LOG_INFO("WinL2capSocket: opening " << path);
+    // Resolving the device interface and opening it happens on a worker
+    // thread: CreateFile can hang indefinitely on a stale/ghost device node
+    // (e.g. Windows still lists the AAP interface for AirPods that are no
+    // longer actually reachable), and this is polled periodically from the
+    // GUI thread — a hang here used to freeze the whole app.
+    //
+    // The thread can easily outlive this WinL2capSocket (a caller may tear
+    // it down and start a new connect attempt while this one is still stuck
+    // in CreateFile), so it must check m_alive -- kept alive via its own
+    // shared_ptr copy -- before ever touching `this` again.
+    std::shared_ptr<std::atomic<bool>> alive = m_alive;
+    std::thread([this, address, alive]() {
+        QString path = resolveInterfacePath(address);
+        if (path.isEmpty()) {
+            if (!*alive) return;
+            QMetaObject::invokeMethod(this, [this, alive]() {
+                if (!*alive) return;
+                failWith(HostNotFoundError,
+                         "AAP device interface not found. Is the L2CAP driver installed and the AirPods connected?");
+            }, Qt::QueuedConnection);
+            return;
+        }
+        LOG_INFO("WinL2capSocket: opening " << path);
 
-    HANDLE h = CreateFileW(reinterpret_cast<LPCWSTR>(path.utf16()),
-                           GENERIC_READ | GENERIC_WRITE,
-                           FILE_SHARE_READ | FILE_SHARE_WRITE, nullptr,
-                           OPEN_EXISTING, FILE_FLAG_OVERLAPPED, nullptr);
-    if (h == INVALID_HANDLE_VALUE) {
-        DWORD e = GetLastError();
-        failWith(ConnectionRefusedError,
-                 QString("CreateFile failed (error %1)").arg(e));
-        return;
-    }
+        HANDLE h = CreateFileW(reinterpret_cast<LPCWSTR>(path.utf16()),
+                               GENERIC_READ | GENERIC_WRITE,
+                               FILE_SHARE_READ | FILE_SHARE_WRITE, nullptr,
+                               OPEN_EXISTING, FILE_FLAG_OVERLAPPED, nullptr);
+        if (h == INVALID_HANDLE_VALUE) {
+            DWORD e = GetLastError();
+            if (!*alive) return;
+            QMetaObject::invokeMethod(this, [this, e, alive]() {
+                if (!*alive) return;
+                failWith(ConnectionRefusedError,
+                         QString("CreateFile failed (error %1)").arg(e));
+            }, Qt::QueuedConnection);
+            return;
+        }
 
-    m_handle = h;
-    m_state = ConnectedState;
-    startReader();
-
-    // Emit asynchronously so the caller's signal connections (made just before
-    // connectToService) are in place and the event loop drives the handshake.
-    QMetaObject::invokeMethod(this, [this]() { emit connected(); }, Qt::QueuedConnection);
+        if (!*alive) {
+            CloseHandle(h);
+            return;
+        }
+        QMetaObject::invokeMethod(this, [this, h, alive]() {
+            if (!*alive || m_state != ConnectingState) {
+                // Destroyed, or close() was called (or another connect
+                // attempt finished) while this open was in flight; don't
+                // resurrect the socket.
+                CloseHandle(h);
+                return;
+            }
+            m_handle = h;
+            m_state = ConnectedState;
+            startReader();
+            emit connected();
+        }, Qt::QueuedConnection);
+    }).detach();
 }
 
 void WinL2capSocket::startReader()

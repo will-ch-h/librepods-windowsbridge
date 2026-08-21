@@ -65,11 +65,16 @@ ApplicationWindow {
         }
 
         positionNearTray()
-        if (!mainWindow.visible) {
-            mainWindow.visible = true
-        }
-        raise()
-        requestActivate()
+        mainWindow.visible = true
+        // Defer raise()/requestActivate() a tick: on Windows, activating a
+        // frameless always-on-top Tool window in the same call that makes it
+        // visible is unreliable (the native window isn't mapped yet), so the
+        // window never becomes "active" and the click-outside-to-dismiss
+        // logic above never arms itself.
+        Qt.callLater(function() {
+            mainWindow.raise()
+            mainWindow.requestActivate()
+        })
     }
 
     // Mouse area for handling back/forward navigation
@@ -367,17 +372,6 @@ ApplicationWindow {
                         }
                     }
 
-
-                    Button {
-                        text: "Show Magic Cloud Keys QR"
-                        onClicked: keysQrDialog.show()
-                    }
-
-                    KeysQRDialog {
-                        id: keysQrDialog
-                        encKey: airPodsTrayApp.deviceInfo.magicAccEncKey
-                        irk: airPodsTrayApp.deviceInfo.magicAccIRK
-                    }
                 }
             }
 

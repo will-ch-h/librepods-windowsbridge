@@ -31,7 +31,6 @@
 #include "deviceinfo.hpp"
 #include "ble/blemanager.h"
 #include "ble/bleutils.h"
-#include "QRCodeImageProvider.hpp"
 
 #ifdef Q_OS_LINUX
 #include "systemsleepmonitor.hpp"
@@ -674,6 +673,12 @@ private slots:
             return;
         }
 
+        if (socket && socket->state() == AapSocket::ConnectingState)
+        {
+            LOG_INFO("Connection attempt already in progress, ignoring: " << device.name());
+            return;
+        }
+
         LOG_INFO("Connecting to device: " << device.name());
 
         // Clean up any existing socket
@@ -1235,7 +1240,6 @@ int main(int argc, char *argv[]) {
         trayApp->updatePhoneMacStatus(phoneMacEnv.isEmpty() ? QStringLiteral("No phone MAC set") : phoneMacEnv);
     }
 
-    engine.addImageProvider("qrcode", new QRCodeImageProvider());
     trayApp->loadMainModule();
     
     // Verify QML loaded successfully

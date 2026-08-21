@@ -34,9 +34,6 @@ qt_add_executable(librepods-windows
     ble/bleutils.h
     ble/blemanager.cpp
     ble/blemanager.h
-    thirdparty/QR-Code-generator/qrcodegen.cpp
-    thirdparty/QR-Code-generator/qrcodegen.hpp
-    QRCodeImageProvider.hpp
     eardetection.hpp
     windowssleepmonitor.hpp
     windowssleepmonitor.cpp
@@ -53,7 +50,6 @@ qt_add_qml_module(librepods-windows
         SegmentedControl.qml
         PodColumn.qml
         Icon.qml
-        KeysQRDialog.qml
         AirPodsConnectPopup.qml
 )
 

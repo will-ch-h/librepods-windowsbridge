@@ -19,6 +19,7 @@
 #include <QBluetoothServiceInfo>
 #include <thread>
 #include <atomic>
+#include <memory>
 
 class WinL2capSocket : public QObject
 {
@@ -73,4 +74,13 @@ private:
     QMutex m_rxMutex;
     // One entry per received L2CAP message; preserves AAP packet framing.
     QQueue<QByteArray> m_rxQueue;
+
+    // connectToService() resolves the device path and opens the handle on a
+    // detached worker thread (CreateFile can hang for seconds on a stale
+    // device node). That thread outlives any single connect attempt, so it
+    // must never touch `this` after the socket has been destroyed (e.g. a
+    // caller tore it down to retry while the previous attempt was still in
+    // flight) -- this flag, kept alive by the thread's own shared_ptr copy,
+    // is how it finds out.
+    std::shared_ptr<std::atomic<bool>> m_alive = std::make_shared<std::atomic<bool>>(true);
 };
