@@ -49,12 +49,11 @@ automatically by the setup below.
 
 2. Download the Setup.exe from [releases](https://github.com/will-ch-h/librepods-windowsbridge/releases)
    and run it. It bundles and auto-installs the project's own signed
-   [l2cap-windowsdriver](https://github.com/will-ch-h/l2cap-windowsdriver) — you'll get a UAC
-   prompt (the driver install needs admin), and possibly one more restart if the AAP device
-   node doesn't bind right away (unplugging/replugging Bluetooth or re-pairing the AirPods
-   usually works without one).
+   [l2cap-windowsdriver](https://github.com/will-ch-h/l2cap-windowsdriver)
 
-3. Pair your AirPods in Windows Bluetooth settings if you haven't already.
+3. Turn Bluetooth Off and On
+
+4. Pair your AirPods in Windows Bluetooth settings if you haven't already.
 
 > [!WARNING]
 > **What the installer changes on your system.** Two things worth understanding before
@@ -75,7 +74,7 @@ automatically by the setup below.
 
 4. On first run it might be a little weird, click in and out of the window.
 
-5. It is recomended to move the tray icon onto your taskbar but you don't have to :).
+5. It is recommended to move the tray icon onto your taskbar but you don't have to :).
 
 
 ## Needed Improvements 
