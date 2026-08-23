@@ -84,11 +84,19 @@ build-only `librepods-windows.exp` and `librepods-windows.lib` files.)
 
 The app talks to the AirPods over L2CAP through a kernel driver, so before it can connect:
 
-1. Install the **MagicAAP driver** in Windows **Test Mode**
-   (`bcdedit /set testsigning on`, reboot — Secure Boot must be off).
-   **Do not use the community-signed driver** (see the main README for why).
-2. Pair your AirPods in Windows Bluetooth settings.
-3. Launch `librepods-windows.exe`. It lives in the **system tray** — left-click for
+1. Enable Windows **Test Mode** (`bcdedit /set testsigning on`, reboot — Secure Boot
+   must be off).
+2. Install the [l2cap-windowsdriver](https://github.com/will-ch-h/l2cap-windowsdriver)
+   driver: the running installer (see `installer.iss`) does this automatically, but when
+   running the raw exe from a source build, install it yourself — grab the signed
+   `driver-latest` release from that repo and run:
+   ```powershell
+   certutil -addstore Root l2cap-bridge.cer
+   certutil -addstore TrustedPublisher l2cap-bridge.cer
+   pnputil /add-driver BthEchoSampleCli.inf /install
+   ```
+3. Pair your AirPods in Windows Bluetooth settings.
+4. Launch `librepods-windows.exe`. It lives in the **system tray** — left-click for
    battery, right-click for noise-control modes and settings.
 
 Run with `--debug` for verbose logging:

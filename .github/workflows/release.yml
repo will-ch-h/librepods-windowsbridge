@@ -42,6 +42,14 @@ jobs:
       - name: Build and deploy bundle
         run: cmake --build windows/build --config Release --target deploy
 
+      - name: Download signed AAP L2CAP driver
+        shell: pwsh
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          New-Item -ItemType Directory -Force -Path windows/driver | Out-Null
+          gh release download driver-latest --repo will-ch-h/l2cap-windowsdriver --dir windows/driver --clobber
+
       - name: Install Inno Setup
         run: choco install innosetup -y
 

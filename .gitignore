@@ -659,3 +659,7 @@ obj/
 
 # End of https://www.toptal.com/developers/gitignore/api/qt,c++,clion,kotlin,python,android,pycharm,androidstudio,visualstudiocode,linux
 linux/.qmlls.ini
+
+# Signed driver package bundled by installer.iss (per-signer artifacts, not source)
+windows/driver/*
+!windows/driver/README.md

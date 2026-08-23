@@ -7,6 +7,9 @@
 #define MyAppVersion "1.0.0-b"
 #endif
 #define MyAppExeName "librepods-windows.exe"
+#define DriverInfName "BthEchoSampleCli.inf"
+#define DriverCatName "kmdfsamples.cat"
+#define DriverCerName "l2cap-bridge.cer"
 
 [Setup]
 ; NOTE: The value of AppId uniquely identifies this application. Do not use the same AppId value in installers for other applications.
@@ -29,8 +32,9 @@ ArchitecturesInstallIn64BitMode=x64compatible
 ;SetupArchitecture=x64
 DisableProgramGroupPage=yes
 LicenseFile=..\LICENSE
-; Remove the following line to run in administrative install mode (install for all users).
-PrivilegesRequired=lowest
+; Admin is required: installing the AAP L2CAP kernel driver (pnputil) and
+; trusting its signing cert (LocalMachine cert stores) both need elevation.
+PrivilegesRequired=admin
 OutputDir=Output
 OutputBaseFilename=librepods-windowsbridge-{#MyAppVersion}-setup
 SolidCompression=yes
@@ -46,9 +50,50 @@ Name: "desktopicon"; Description: "{cm:CreateDesktopIcon}"; GroupDescription: "{
 Source: "build\dist\*"; DestDir: "{app}"; Flags: recursesubdirs createallsubdirs ignoreversion
 ; NOTE: Don't use "Flags: ignoreversion" on any shared system files
 
+; AAP L2CAP driver package (see driver\README.md for how to populate this
+; folder before compiling the installer). skipifsourcedoesntexist lets the
+; installer still build if it's empty during development; in that case the
+; [Run] steps below are skipped too, since they check the files exist.
+Source: "driver\{#DriverInfName}"; DestDir: "{app}\driver"; Flags: skipifsourcedoesntexist
+Source: "driver\BthEchoSampleCli.sys"; DestDir: "{app}\driver"; Flags: skipifsourcedoesntexist
+Source: "driver\{#DriverCatName}"; DestDir: "{app}\driver"; Flags: skipifsourcedoesntexist
+Source: "driver\{#DriverCerName}"; DestDir: "{app}\driver"; Flags: skipifsourcedoesntexist
+; Uninstall helper: removes the driver package and, importantly, the signing
+; cert from LocalMachine\Root so no third-party code-signing root is left
+; trusted on the machine after uninstall.
+Source: "uninstall-driver.ps1"; DestDir: "{app}"
+
 [Icons]
 Name: "{autoprograms}\{#MyAppName}"; Filename: "{app}\{#MyAppExeName}"
 Name: "{autodesktop}\{#MyAppName}"; Filename: "{app}\{#MyAppExeName}"; Tasks: desktopicon
 
 [Run]
+; Trust the driver's signing cert, then install the driver package. Requires
+; the machine to already be in test-signing mode (bcdedit /set testsigning on,
+; reboot, Secure Boot off) - the installer does not flip that for you.
+Filename: "{sys}\certutil.exe"; Parameters: "-addstore Root ""{app}\driver\{#DriverCerName}"""; \
+    StatusMsg: "Trusting the AAP L2CAP driver certificate..."; Flags: runhidden waituntilterminated; \
+    Check: DriverFilesPresent
+Filename: "{sys}\certutil.exe"; Parameters: "-addstore TrustedPublisher ""{app}\driver\{#DriverCerName}"""; \
+    StatusMsg: "Trusting the AAP L2CAP driver certificate..."; Flags: runhidden waituntilterminated; \
+    Check: DriverFilesPresent
+Filename: "{sys}\pnputil.exe"; Parameters: "/add-driver ""{app}\driver\{#DriverInfName}"" /install"; \
+    StatusMsg: "Installing the AAP L2CAP driver..."; Flags: runhidden waituntilterminated; \
+    Check: DriverFilesPresent
 Filename: "{app}\{#MyAppExeName}"; Description: "{cm:LaunchProgram,{#StringChange(MyAppName, '&', '&&')}}"; Flags: nowait postinstall skipifsilent
+
+[UninstallRun]
+; Remove the driver and the trusted signing cert on uninstall. runascurrentuser
+; is fine here - the uninstaller already runs elevated (PrivilegesRequired=admin).
+Filename: "powershell.exe"; \
+    Parameters: "-NoProfile -ExecutionPolicy Bypass -File ""{app}\uninstall-driver.ps1"""; \
+    StatusMsg: "Removing the AAP L2CAP driver..."; Flags: runhidden waituntilterminated; \
+    RunOnceId: "RemoveAapDriver"
+
+[Code]
+function DriverFilesPresent: Boolean;
+begin
+  Result := FileExists(ExpandConstant('{app}\driver\{#DriverInfName}'))
+    and FileExists(ExpandConstant('{app}\driver\{#DriverCatName}'))
+    and FileExists(ExpandConstant('{app}\driver\{#DriverCerName}'));
+end;

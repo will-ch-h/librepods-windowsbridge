@@ -14,8 +14,10 @@ This impacts the security of your system and should not be done lightly.
 
 LibrePods communicates with AirPods over the Bluetooth **L2CAP** protocol, but Windows
 blocks user-mode L2CAP, which is why a normal build can't connect. To work around this,
-this fork uses the [MagicAAP driver](https://magicpods.app/magicaap/) to talk to the
-AirPods at the kernel level. (own driver in the works)
+this fork ships its own [l2cap-windowsdriver](https://github.com/will-ch-h/l2cap-windowsdriver)
+(a retargeted fork of Microsoft's `bthecho` sample) to talk to the AirPods at the kernel
+level. It's signed with the project's own test-signing certificate and installed
+automatically by the setup below.
 
 ## Current Features 
 - See Airpod Battery and Connection Status
@@ -39,19 +41,41 @@ AirPods at the kernel level. (own driver in the works)
 > This project is still very much in beta, 
 > don't expect a smooth experience.
 
-1. Install the [**MagicAAP driver**](https://magicpods.app/magicaap/) in Windows **Test Mode**.
+1. Enable Windows **Test Mode** (Secure Boot must be off first):
+   ```powershell
+   bcdedit /set testsigning on
+   ```
+   Reboot. You should see a "Test Mode" watermark in the bottom-right of the desktop.
 
-> **Do NOT install the community-signed driver.** It relies on a code-signing exploit
-> (a leaked certificate) this opens a potential backdoor on your
-> system.
+2. Download the Setup.exe from [releases](https://github.com/will-ch-h/librepods-windowsbridge/releases)
+   and run it. It bundles and auto-installs the project's own signed
+   [l2cap-windowsdriver](https://github.com/will-ch-h/l2cap-windowsdriver) — you'll get a UAC
+   prompt (the driver install needs admin), and possibly one more restart if the AAP device
+   node doesn't bind right away (unplugging/replugging Bluetooth or re-pairing the AirPods
+   usually works without one).
 
-2. Download the Setup.exe from releases.
+3. Pair your AirPods in Windows Bluetooth settings if you haven't already.
 
-4. Go through the setup process.
+> [!WARNING]
+> **What the installer changes on your system.** Two things worth understanding before
+> you agree to them:
+>
+> - **Test Mode weakens driver security machine-wide.** With `testsigning on`, Windows will
+>   load *any* test-signed kernel driver, not just this one. Turn it back off with
+>   `bcdedit /set testsigning off` if you stop using this app.
+> - **The installer adds this project's certificate to your Trusted Root store.** That means
+>   anything signed with our key is trusted as code on your machine. The cert is restricted
+>   to code signing only (it can't be used to intercept HTTPS), but if our signing key were
+>   ever leaked or the repo compromised, that trust could be abused. Uninstalling removes
+>   the cert and the driver again.
+>
+> This is inherent to shipping a self-signed kernel driver — there's no way around it short
+> of a real (expensive, attested) Microsoft-cross-signed EV certificate. Install it only if
+> you're comfortable with that tradeoff.
 
-6. On first run it might be a little weird, click in and out of the window.
+4. On first run it might be a little weird, click in and out of the window.
 
-7. It is recomended to move the tray icon onto your taskbar but you don't have to :).
+5. It is recomended to move the tray icon onto your taskbar but you don't have to :).
 
 
 ## Needed Improvements 
