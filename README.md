@@ -78,6 +78,7 @@ automatically by the setup below.
 
 
 ## Needed Improvements 
+- Hearing Aid is not yet implemented 
 - After first install the window will not close until clicked into
 - Sometimes airpods show up as disconnected and out of ear when connected
   > This happens when put back into and taken out of the case really quickly
